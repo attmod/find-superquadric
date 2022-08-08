@@ -268,6 +268,9 @@ public:
 };
 
 
+
+
+
 /****************************************************************/
 class Finder : public RFModule
 {
@@ -279,6 +282,32 @@ class Finder : public RFModule
     bool viewer_enabled;
     double inside_penalty;
     bool closing;
+
+    BufferedPort<Bottle> responsePort; // output data
+
+    class PointsPort : public BufferedPort<yarp::sig::PointCloud<DataXYZRGBA>>
+    {
+        public:
+            Finder *finder;
+        private:
+            using BufferedPort<yarp::sig::PointCloud<DataXYZRGBA>>::onRead;
+            void onRead(yarp::sig::PointCloud<DataXYZRGBA>& b) override
+            {
+                //PointCloud<DataXYZRGBA> points;
+                // if (!points.read(b))
+                //     return false;
+                Bottle& reply = finder->responsePort.prepare();
+                //Bottle reply;
+                finder->process(b,reply);
+                //if (ConnectionWriter *writer=connection.getWriter())
+                //    reply.write(*writer);
+                finder->responsePort.write();
+                //return true;
+            }
+//        public:
+            //PointsPort(Finder *finder_) : finder(finder_) { }
+    } requestPort;
+
 
     class PointsProcessor : public PortReader {
         Finder *finder;
@@ -460,6 +489,12 @@ class Finder : public RFModule
 
             rpcService.open("/find-superquadric/service:rpc");
             attach(rpcService);
+
+            requestPort.finder = this;
+            requestPort.useCallback();
+            requestPort.open("/find-superquadric/in");
+            responsePort.open("/find-superquadric/out");
+
         }
 
         if (rf.check("remove-outliers"))
